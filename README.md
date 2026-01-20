@@ -94,20 +94,22 @@ A cross-platform video effects processor featuring modes like Purple Vocoder, Cu
 
 Download the latest release for your platform from the [Releases](https://github.com/1ajh/srle-studio/releases) page.
 
-| Platform | Download | Requirements |
-|----------|----------|--------------|
-| Windows | `VideoEffectsStudio-windows.zip` | Windows 10/11 |
-| macOS | `VideoEffectsStudio-macos.dmg` | macOS 10.14+ |
-| Linux | `VideoEffectsStudio-linux.tar.gz` | GTK 3.0+ |
-| Android | `app-release.apk` | Android 6.0+ |
-| iOS | `VideoEffectsStudio-ios.ipa` | iOS 12.0+ |
-| Web | [web.app](https://1ajh.github.io/srle-studio) | Modern browser |
+| Platform | Download | Requirements | Status |
+|----------|----------|--------------|--------|
+| Windows | `VideoEffectsStudio-windows.zip` | Windows 10/11 | ✅ Available |
+| Linux | `VideoEffectsStudio-linux.tar.gz` | GTK 3.0+ | ✅ Available |
+| Web | [web.app](https://1ajh.github.io/srle-studio) | Modern browser | ✅ Available |
+| macOS | `VideoEffectsStudio-macos.dmg` | macOS 10.14+ | ⚠️ Build from source |
+| Android | `app-release.apk` | Android 6.0+ | ⚠️ Build from source |
+| iOS | `VideoEffectsStudio-ios.ipa` | iOS 12.0+ | ⚠️ Build from source |
+
+> **Note**: Android, iOS, and macOS builds are temporarily unavailable due to upstream FFmpeg library issues. You can build these platforms from source.
 
 ### Build from Source
 
 #### Prerequisites
 
-1. Install [Flutter](https://docs.flutter.dev/get-started/install) (3.19 or higher)
+1. Install [Flutter](https://docs.flutter.dev/get-started/install) (3.24 or higher)
 2. Install platform-specific dependencies:
 
 **Windows:**
