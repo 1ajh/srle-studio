@@ -1,16 +1,13 @@
 import 'dart:io';
-import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
-import 'package:flutter_ffmpeg/statistics.dart';
+import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter/return_code.dart';
+import 'package:ffmpeg_kit_flutter/statistics.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../models/effect_mode.dart';
 
 /// Service for processing videos with FFmpeg
 class FFmpegService {
-  static final FlutterFFmpeg _ffmpeg = FlutterFFmpeg();
-  static final FlutterFFmpegConfig _ffmpegConfig = FlutterFFmpegConfig();
-  static final FlutterFFprobe _ffprobe = FlutterFFprobe();
-
   /// Process a single video with the given effect
   static Future<ProcessResult> processVideo({
     required String inputPath,
@@ -34,7 +31,7 @@ class FFmpegService {
       // Clean up the command (remove newlines and extra spaces)
       command = command.trim().replaceAll(RegExp(r'\s+'), ' ');
       
-      // Remove the 'ffmpeg' prefix since flutter_ffmpeg adds it
+      // Remove the 'ffmpeg' prefix since FFmpegKit adds it
       if (command.startsWith('ffmpeg ')) {
         command = command.substring(7);
       }
@@ -42,34 +39,48 @@ class FFmpegService {
       // Get video duration for progress calculation
       final duration = await _getVideoDuration(inputPath);
 
-      // Set up statistics callback for progress
-      _ffmpegConfig.enableStatisticsCallback((Statistics statistics) {
-        if (duration > 0) {
-          final time = statistics.time;
-          final progress = (time / 1000) / duration;
-          onProgress(progress.clamp(0.0, 1.0));
-        }
-      });
-
       // Execute FFmpeg command
-      final returnCode = await _ffmpeg.execute(command);
+      final session = await FFmpegKit.executeAsync(
+        command,
+        (session) async {
+          final returnCode = await session.getReturnCode();
+          if (ReturnCode.isSuccess(returnCode)) {
+            onProgress(1.0);
+          }
+        },
+        (log) {
+          // Log callback - can be used for debugging
+          print('FFmpeg Log: ${log.getMessage()}');
+        },
+        (Statistics statistics) {
+          // Progress callback
+          if (duration > 0) {
+            final time = statistics.getTime();
+            final progress = (time / 1000) / duration;
+            onProgress(progress.clamp(0.0, 1.0));
+          }
+        },
+      );
 
-      if (returnCode == 0) {
-        onProgress(1.0);
+      // Wait for completion
+      final returnCode = await session.getReturnCode();
+
+      if (ReturnCode.isSuccess(returnCode)) {
         return ProcessResult(
           success: true,
           outputPath: outputPath,
           message: 'Processing complete',
         );
-      } else if (returnCode == 255) {
+      } else if (ReturnCode.isCancel(returnCode)) {
         return ProcessResult(
           success: false,
           message: 'Processing cancelled',
         );
       } else {
+        final logs = await session.getAllLogsAsString();
         return ProcessResult(
           success: false,
-          message: 'Processing failed with code: $returnCode',
+          message: 'Processing failed: $logs',
         );
       }
     } catch (e) {
@@ -135,10 +146,22 @@ class FFmpegService {
   /// Get video duration in seconds
   static Future<double> _getVideoDuration(String inputPath) async {
     try {
-      final info = await _ffprobe.getMediaInformation(inputPath);
-      final durationStr = info.getMediaProperties()?['duration'];
-      if (durationStr != null) {
-        return double.tryParse(durationStr.toString()) ?? 0;
+      final session = await FFmpegKit.execute(
+        '-i "$inputPath" -f null -',
+      );
+      final output = await session.getAllLogsAsString();
+      
+      // Parse duration from FFmpeg output
+      final durationMatch = RegExp(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})')
+          .firstMatch(output ?? '');
+      
+      if (durationMatch != null) {
+        final hours = int.parse(durationMatch.group(1)!);
+        final minutes = int.parse(durationMatch.group(2)!);
+        final seconds = int.parse(durationMatch.group(3)!);
+        final centiseconds = int.parse(durationMatch.group(4)!);
+        
+        return hours * 3600 + minutes * 60 + seconds + centiseconds / 100;
       }
     } catch (_) {}
     
@@ -158,12 +181,13 @@ class FFmpegService {
 
   /// Cancel all running FFmpeg sessions
   static Future<void> cancelAll() async {
-    await _ffmpeg.cancel();
+    await FFmpegKit.cancel();
   }
 
   /// Get FFmpeg version info
   static Future<String> getVersion() async {
-    return await _ffmpegConfig.getFFmpegVersion();
+    final session = await FFmpegKit.execute('-version');
+    return await session.getOutput() ?? 'Unknown';
   }
 }
 
